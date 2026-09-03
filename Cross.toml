@@ -1,0 +1,4 @@
+# Use newer cross image for aarch64-musl to avoid GLIBC_2.28+ required by libc build script
+# (default 0.2.5 image has older glibc in container)
+[target.aarch64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:edge"

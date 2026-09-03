@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kcc-server-config
+  namespace: default
+data:
+  KCC_SERVER_ADDR: '0.0.0.0:5005'
+  KCC_WEB_BASE: '/kcc'
+  KCC_INSPECTOR_NAMESPACE: 'kube-system'
+  KCC_INSPECTOR_LABEL: 'app=kcc-inspector'
+  KCC_NODE_ACCESS_PORT: '9090'
+  KCC_NODE_ACCESS_MODE: 'pod_ip'
+  KCC_REPORTS_DIR: '/data/reports'
+  KCC_LOGS_DIR: '/data/logs'
+  KCC_DEFAULT_FORMAT: 'html'
+  KCC_DEFAULT_LANG: 'zh'
+  KCC_DEFAULT_LEVEL: 'all'
+  KCC_AUTH_ENABLED: 'true'
+  KCC_AUTH_SECRET: '1qaz2wsx3edc'
+  KCC_ADMIN_USER: 'admin'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kcc-server-secret
+  namespace: default
+type: Opaque
+data:
+  KCC_ADMIN_PASSWORD: T3BzQGxpbTIwMjY=
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kcc-server
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kcc-server
+rules:
+- apiGroups: ["certificates.k8s.io"]
+  resources: ["certificatesigningrequests"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["configmaps", "endpoints", "limitranges", "namespaces", "nodes", "persistentvolumeclaims", "persistentvolumes", "pods", "replicationcontrollers", "resourcequotas", "secrets", "services", "serviceaccounts", "componentstatuses", "events"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"] 
+- apiGroups: ["apps"]
+  resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["get", "list"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["get", "list"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "volumeattachments"]
+  verbs: ["get", "list"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list"]
+- apiGroups: ["scheduling.k8s.io"]
+  resources: ["priorityclasses"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kcc-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kcc-server
+subjects:
+- kind: ServiceAccount
+  name: kcc-server
+  namespace: default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kcc-server
+  namespace: default
+spec:
+  type: ClusterIP
+  ports:
+    - name: kcc-server
+      protocol: TCP
+      port: 5005
+      targetPort: 5005
+  selector:
+    app: kcc-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kcc-server
+  namespace: default
+  labels:
+    app: kcc-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kcc-server
+  template:
+    metadata:
+      labels:
+        app: kcc-server
+    spec:
+      serviceAccountName: kcc-server
+      containers:
+        - name: kcc-server
+          image: kcc:latest
+          imagePullPolicy: IfNotPresent
+          command: ["kcc", "server"]
+          ports:
+            - name: http
+              containerPort: 5005
+              protocol: TCP
+          env:
+            - name: TZ
+              value: Asia/Shanghai
+          envFrom:
+            - configMapRef:
+                name: kcc-server-config
+            - secretRef:
+                name: kcc-server-secret
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /kcc/
+              port: 5005
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /kcc/
+              port: 5005
+            initialDelaySeconds: 10
+            periodSeconds: 20

@@ -1,0 +1,27 @@
+# Build
+/target/
+
+# IDE and editor
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+
+# Local reports (optional: uncomment to ignore generated reports in repo root)
+# /cluster-*-kubernetes-inspection-report-*.md
+# /cluster-*-kubernetes-inspection-report-*.json
+# /cluster-*-kubernetes-inspection-report-*.csv
+# /cluster-*-kubernetes-inspection-report-*.html
+
+# Environment
+.env
+.env.local
+
+# Freebuff 本地会话元数据
+.freebuff/
+
+# OS
+.DS_Store
+Thumbs.db

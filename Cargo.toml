@@ -1,0 +1,60 @@
+[package]
+name = "kcc"
+version = "1.0.0"
+edition = "2021"
+authors = ["ops-engineer"]
+description = "Kubernetes cluster inspection tool"
+readme = "README.md"
+repository = "https://github.com/fsops/kcc-inspector"
+license = "MIT"
+
+[[bin]]
+name = "kcc"
+path = "src/main.rs"
+
+[lib]
+name = "kcc"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+anyhow = "1.0"
+thiserror = "1.0"
+kube = { version = "0.87", features = ["ws"] }
+k8s-openapi = { version = "0.20", features = ["v1_28"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4"] }
+log = "0.4"
+env_logger = "0.10"
+colored = "2.0"
+reqwest = { version = "0.11", features = ["json"] }
+futures = "0.3"
+rand = "0.8"
+http = "0.2"
+x509-parser = "0.16"
+time = "0.3"
+comrak = "0.18"
+base64 = "0.22"
+axum = "0.7"
+argon2 = "0.5"
+jsonwebtoken = "9"
+rust-embed = "8"
+sha2 = "0.10"
+libc = "0.2"
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+# Vendored OpenSSL when building for aarch64 (CI cross-compile); avoids apt arm64/404 on ubuntu-latest
+openssl = { version = "0.10", features = ["vendored"] }
+
+[target.'cfg(target_env = "musl")'.dependencies]
+# Vendored OpenSSL for musl (static Linux build); runs on RHEL 7/8/9, older glibc, etc.
+openssl = { version = "0.10", features = ["vendored"] }
+
+[dev-dependencies]
+mockall = "0.11"
+tempfile = "3.0"
+tokio-test = "0.4"

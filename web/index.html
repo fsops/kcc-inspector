@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KCC 集群巡检</title>
+  <link rel="icon" type="image/svg+xml" href="/kcc/favicon.svg" />
+  <link rel="stylesheet" href="/kcc/static/app.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 登录视图（默认可见；已登录则由 redirectIfAuth 切换为主视图） -->
+    <section id="login-view" class="view">
+      <form id="login-form" class="card login-card">
+        <img class="login-logo" src="/kcc/logo.png" alt="logo" />
+        <h1>KCC 集群巡检平台</h1>
+        <p class="subtitle">Kubernetes Cluster Inspector</p>
+        <label>用户名
+          <input id="login-username" type="text" autocomplete="username" required />
+        </label>
+        <label>密码
+          <input id="login-password" type="password" autocomplete="current-password" required />
+        </label>
+        <div id="login-error" class="error" hidden></div>
+        <button type="submit">登 录</button>
+      </form>
+    </section>
+
+    <!-- 主视图 -->
+    <section id="main-view" class="view" hidden>
+      <nav class="topbar">
+        <div class="brand"><img class="brand-logo" src="/kcc/logo.png" alt="logo" />KCC 集群巡检</div>
+        <div class="nav-right">
+          <span id="me-label"></span>
+          <button id="logout-btn" class="link">退出</button>
+        </div>
+      </nav>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="tab-inspect">发起巡检</button>
+        <button class="tab" data-tab="tab-reports">报告列表</button>
+        <button class="tab" data-tab="tab-history">历史记录</button>
+      </div>
+
+      <!-- 发起巡检 -->
+      <section id="tab-inspect" class="tab-panel active">
+        <form id="inspect-form" class="card">
+          <h2>发起一次集群巡检</h2>
+          <div class="grid">
+            <label>巡检类型
+              <select id="inspect-type">
+                <option value="all">全部 (all)</option>
+                <option value="nodes">节点 (nodes)</option>
+                <option value="pods">Pod (pods)</option>
+                <option value="security">安全 (security)</option>
+                <option value="resources">资源 (resources)</option>
+                <option value="network">网络 (network)</option>
+                <option value="storage">存储 (storage)</option>
+                <option value="control">控制平面 (control-plane)</option>
+                <option value="autoscaling">自动伸缩 (autoscaling)</option>
+                <option value="batch">批处理 (batch)</option>
+                <option value="policies">策略 (policies)</option>
+                <option value="observability">可观测性 (observability)</option>
+                <option value="upgrade">升级就绪 (upgrade)</option>
+                <option value="certificates">证书 (certificates)</option>
+              </select>
+            </label>
+            <label>命名空间（留空为全部）
+              <input id="inspect-namespace" type="text" placeholder="kube-system" />
+            </label>
+            <label>集群名称（留空自动识别）
+              <input id="inspect-cluster-name" type="text" placeholder="my-cluster" />
+            </label>
+            <label>报告格式
+              <select id="inspect-format">
+                <option value="html" selected>HTML</option>
+                <option value="md">Markdown</option>
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+              </select>
+            </label>
+            <label>报告语言
+              <select id="inspect-lang">
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <label>问题分级（逗号分隔）
+              <input id="inspect-level" type="text" value="warning,critical" />
+            </label>
+          </div>
+          <button type="submit">开始巡检</button>
+        </form>
+
+        <!-- 实时进度 -->
+        <section id="progress-section" class="card" hidden>
+          <h2>巡检进度 <span id="progress-id" class="muted"></span></h2>
+          <div class="progress-meta" id="progress-meta">状态：未启动</div>
+          <div class="bar"><div id="progress-bar" class="bar-fill" style="width:0%"></div></div>
+          <div class="score-big" id="progress-score"></div>
+          <pre id="logs-box" class="logs"></pre>
+          <div class="row">
+            <button id="cancel-btn" class="danger">取消巡检</button>
+            <a id="download-link" class="btn" hidden>下载报告</a>
+          </div>
+        </section>
+      </section>
+
+      <!-- 报告列表 -->
+      <section id="tab-reports" class="tab-panel">
+        <div class="card">
+          <h2>报告列表</h2>
+          <table id="reports-table">
+            <thead>
+              <tr><th>时间</th><th>集群</th><th>评分</th><th>格式</th><th>大小</th><th>操作</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 历史记录 -->
+      <section id="tab-history" class="tab-panel">
+        <div class="card">
+          <h2>历史巡检记录</h2>
+          <table id="history-table">
+            <thead>
+              <tr><th>ID</th><th>类型</th><th>开始时间</th><th>耗时</th><th>状态</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script src="/kcc/static/app.js"></script>
+</body>
+</html>

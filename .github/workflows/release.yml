@@ -1,0 +1,159 @@
+# Build Linux binaries (amd64, arm64) and publish to GitHub Releases on tag push (e.g. v0.1.1).
+# Artifacts: Linux x86_64, Linux aarch64 only.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux: musl static binaries (no glibc dependency; run on RHEL 7/8/9, older distros)
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            asset: x86_64-linux
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            asset: aarch64-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (Linux musl static build)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo install cross
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Strip binary
+        run: strip target/${{ matrix.target }}/release/kcc 2>/dev/null || true
+
+      - name: Prepare archive
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          BIN=target/${{ matrix.target }}/release/kcc
+          mkdir -p release
+          cp "$BIN" "release/kcc"
+          cd release
+          tar czvf "../kcc-${VERSION}-${{ matrix.asset }}.tar.gz" kcc
+          cd ..
+          echo "ASSET_PATH=kcc-${VERSION}-${{ matrix.asset }}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcc-${{ matrix.asset }}
+          path: ${{ env.ASSET_PATH }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for CHANGELOG)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten assets for release
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          VER="${GITHUB_REF#refs/tags/}"
+          VER_NUM="${VER#v}"
+          awk -v ver="$VER_NUM" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; print; next }
+            found && $0 ~ /^## \\[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release_notes.md || true
+          if [ ! -s release_notes.md ]; then
+            echo "See [CHANGELOG](https://github.com/${{ github.repository }}/blob/${GITHUB_REF}/CHANGELOG.md) for details." > release_notes.md
+          fi
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          body_path: release_notes.md
+          generate_release_notes: false
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Download release binaries for image build
+        run: |
+          VERSION="${{ github.ref_name }}"
+          REPO="https://github.com/${{ github.repository }}/releases/download"
+          mkdir -p release/amd64 release/arm64
+          curl -sL "${REPO}/${VERSION}/kcc-${VERSION}-x86_64-linux.tar.gz" | tar xz -C release/amd64
+          curl -sL "${REPO}/${VERSION}/kcc-${VERSION}-aarch64-linux.tar.gz" | tar xz -C release/arm64
+
+      - name: Build and push fsops/kcc (multi-arch)
+        run: |
+          VERSION="${{ github.ref_name }}"
+          # The Dockerfile copies the locally provided binary (no download inside the image build).
+          docker buildx build --platform linux/amd64 \
+            --build-arg BIN_PATH=release/amd64/kcc \
+            --build-arg VERSION="${VERSION}" \
+            -t fsops/kcc:${VERSION}-amd64 \
+            --push -f Dockerfile .
+          docker buildx build --platform linux/arm64 \
+            --build-arg BIN_PATH=release/arm64/kcc \
+            --build-arg VERSION="${VERSION}" \
+            -t fsops/kcc:${VERSION}-arm64 \
+            --push -f Dockerfile .
+          sleep 5
+          docker buildx imagetools create -t fsops/kcc:${VERSION} \
+            fsops/kcc:${VERSION}-amd64 \
+            fsops/kcc:${VERSION}-arm64
+
+      # Node inspector uses the same kcc image; the DaemonSet overrides the command
+      # to `kcc node-inspector` (see deploy/node-inspector/daemonset.yaml).

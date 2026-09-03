@@ -1,0 +1,34 @@
+# Reduce build context: exclude build output and VCS.
+# Only the locally built release binary is needed by the Dockerfile COPY.
+# If your Linux binary lives elsewhere (see Dockerfile ARG BIN_PATH), adjust the
+# whitelist below so it is included in the build context.
+# Note: Alpine runtime images require the static musl binaries built with
+#   cargo zigbuild --release --target x86_64-unknown-linux-musl      # amd64
+#   cargo zigbuild --release --target aarch64-unknown-linux-musl     # arm64
+target/*
+!target/x86_64-unknown-linux-musl/
+target/x86_64-unknown-linux-musl/*
+!target/x86_64-unknown-linux-musl/release/
+target/x86_64-unknown-linux-musl/release/*
+!target/x86_64-unknown-linux-musl/release/kcc
+!target/aarch64-unknown-linux-musl/
+target/aarch64-unknown-linux-musl/*
+!target/aarch64-unknown-linux-musl/release/
+target/aarch64-unknown-linux-musl/release/*
+!target/aarch64-unknown-linux-musl/release/kcc
+!target/release/
+target/release/*
+!target/release/kcc
+.git/
+.gitignore
+*.md
+!README.md
+.cursor/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.env
+.env.local
+.DS_Store
